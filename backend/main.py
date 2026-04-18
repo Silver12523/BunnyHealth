@@ -8,6 +8,25 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="BunnyHealth API")
 
+def ensure_demo_pet():
+    db = next(get_db())
+    try:
+        demo_user = db.query(models.User).filter(models.User.id == 1).first()
+        if demo_user is None:
+            demo_user = models.User(id=1, username="Demo User", target_calories=2000)
+            db.add(demo_user)
+            db.commit()
+
+        demo_pet = db.query(models.Pet).filter(models.Pet.user_id == demo_user.id).first()
+        if demo_pet is None:
+            demo_pet = models.Pet(user_id=demo_user.id, name="Bunny")
+            db.add(demo_pet)
+            db.commit()
+    finally:
+        db.close()
+
+ensure_demo_pet()
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to BunnyHealth API"}

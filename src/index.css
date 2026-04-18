@@ -10,7 +10,7 @@
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f7faf7;
   min-height: 100vh;
 }
 

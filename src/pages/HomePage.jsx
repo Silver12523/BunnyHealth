@@ -1,447 +1,266 @@
-import { useState, useEffect, useRef } from 'react'
+import { useRef, useState } from 'react'
 import axios from 'axios'
-import { useNavigate } from 'react-router-dom'
+import bunnyHome from '../../picture/normal.png'
 
-const API_BASE = 'http://127.0.0.1:8000'
-
-const BACKGROUND_MAP = {
-  healthy: '/picture/healthhome.png',
-  normal: '/picture/normal.png',
-  sick: '/picture/sickhome.png',
-  dead: '/picture/nighthome.png',
-}
-
-const LAYER_IMAGES = {
-  fat_mild: '/picture/缺膳食纤维.png',
-  fat_severe: '/picture/缺膳食纤维.png',
-  iron_mild: '/picture/缺铁.png',
-  iron_severe: '/picture/缺铁.png',
-  calcium_mild: '/picture/-1.png',
-  calcium_severe: '/picture/-1.png',
-  iodine_mild: '/picture/缺碘.png',
-  iodine_severe: '/picture/缺碘.png',
-  vit_c_mild: '/picture/缺维C.png',
-  vit_c_severe: '/picture/缺维C.png',
-  dead_ghost: '/picture/betterhome.png',
-}
+const API_BASE = '/api'
+const DEFAULT_USER_ID = 1
 
 export default function HomePage() {
-  const navigate = useNavigate()
-  const userId = localStorage.getItem('user_id')
-  const username = localStorage.getItem('username')
-
-  const [petData, setPetData] = useState(null)
-  const [recommendations, setRecommendations] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [foodInput, setFoodInput] = useState('')
-  const [analysisResult, setAnalysisResult] = useState(null)
-  const [analyzing, setAnalyzing] = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
-  const [selectedImage, setSelectedImage] = useState(null)
   const fileInputRef = useRef(null)
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [imageBase64, setImageBase64] = useState('')
+  const [analysisResult, setAnalysisResult] = useState(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [notice, setNotice] = useState('')
 
-  useEffect(() => {
-    if (!userId) {
-      navigate('/login')
+  const currentUserId = Number(localStorage.getItem('user_id')) || DEFAULT_USER_ID
+
+  const handleChoosePhoto = () => {
+    setNotice('')
+    fileInputRef.current?.click()
+  }
+
+  const analyzeMeal = async (base64Value) => {
+    if (!base64Value) {
+      setErrorMessage('先拍照或上传这一顿饭的照片。')
       return
     }
-    fetchPetData()
-    fetchRecommendations()
-  }, [userId, navigate])
 
-  const fetchPetData = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/pets/${userId}`)
-      setPetData(response.data)
-    } catch (err) {
-      console.error('Failed to fetch pet data:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+    setIsAnalyzing(true)
+    setErrorMessage('')
+    setNotice('')
 
-  const fetchRecommendations = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/pets/${userId}/recommendations`)
-      setRecommendations(response.data)
-    } catch (err) {
-      console.error('Failed to fetch recommendations:', err)
-    }
-  }
-
-  const handleAnalyzeFood = async (foodName) => {
-    setAnalyzing(true)
     try {
       const response = await axios.post(`${API_BASE}/meals/analyze`, {
-        user_id: parseInt(userId),
-        food_name: foodName,
-        image_base64: null
+        user_id: currentUserId,
+        food_name: '图片识别餐食',
+        image_base64: base64Value,
       })
+
       setAnalysisResult(response.data)
-      fetchPetData()
-      fetchRecommendations()
-    } catch (err) {
-      console.error('Failed to analyze food:', err)
+    } catch (error) {
+      console.error('Failed to analyze meal:', error)
+      setErrorMessage('识别失败，请确认后端服务已经启动。')
     } finally {
-      setAnalyzing(false)
+      setIsAnalyzing(false)
     }
   }
 
-  const handleSubmitFood = (e) => {
-    e.preventDefault()
-    if (foodInput.trim()) {
-      handleAnalyzeFood(foodInput.trim())
+  const handleImageSelect = (event) => {
+    const file = event.target.files?.[0]
+
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('请上传一张餐食照片。')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = String(reader.result)
+      const base64Value = result.split(',')[1] || result
+      setSelectedFile(file)
+      setPreviewUrl(result)
+      setImageBase64(base64Value)
+      setAnalysisResult(null)
+      setErrorMessage('')
+      analyzeMeal(base64Value)
+    }
+    reader.onerror = () => {
+      setErrorMessage('照片读取失败，请重新选择。')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleAnalyzeMeal = async () => {
+    analyzeMeal(imageBase64)
+  }
+
+  const handleClearPhoto = () => {
+    setSelectedFile(null)
+    setPreviewUrl('')
+    setImageBase64('')
+    setAnalysisResult(null)
+    setErrorMessage('')
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setSelectedImage(reader.result)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('user_id')
-    localStorage.removeItem('username')
-    navigate('/login')
-  }
-
-  const getBackgroundImage = () => {
-    if (!petData?.active_diseases?.length) return BACKGROUND_MAP.healthy
-    const hasDead = petData.active_diseases.some(d => d.severity === 'dead')
-    if (hasDead) return BACKGROUND_MAP.dead
-    const hasSevere = petData.active_diseases.some(d => d.severity === 'severe')
-    if (hasSevere) return BACKGROUND_MAP.sick
-    return BACKGROUND_MAP.normal
-  }
-
-  const getHpBarColor = (value) => {
-    if (value >= 80) return 'bg-green-500'
-    if (value >= 40) return 'bg-yellow-500'
-    return 'bg-red-500'
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-white text-xl">🐰 加载中...</div>
-      </div>
-    )
+  const showComingSoon = (label) => {
+    setNotice(`${label} 还没有接入，先完成拍照识别这一屏。`)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 p-4">
-      <header className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">🐰 欢迎回来，{username}！</h1>
-          <p className="text-white/80 text-sm">你的小兔子正在等你</p>
-        </div>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-white transition-all"
-        >
-          退出登录
-        </button>
-      </header>
+    <main className="min-h-screen bg-[#f7faf7] text-[#18221d]">
+      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-4 pt-5">
+        <header className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-[#29705a]">BunnyHealth</p>
+            <h1 className="mt-1 text-2xl font-bold">拍下这一餐</h1>
+          </div>
+          <img
+            src={bunnyHome}
+            alt="小兔子家园"
+            className="h-14 w-14 rounded-lg object-cover"
+          />
+        </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20">
-            <h2 className="text-xl font-bold text-white mb-4">🏠 家园</h2>
-            <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-gray-900">
+        <div className="flex-1">
+          <button
+            type="button"
+            onClick={handleChoosePhoto}
+            className="relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-[#8bc5af] bg-white text-left shadow-sm transition hover:border-[#29705a] focus:outline-none focus:ring-2 focus:ring-[#29705a] focus:ring-offset-2"
+          >
+            {previewUrl ? (
               <img
-                src={getBackgroundImage()}
-                alt="家园背景"
-                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                src={previewUrl}
+                alt="已上传的餐食照片"
+                className="h-full w-full object-cover"
               />
-
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-8xl mb-4 animate-float">
-                    {petData?.active_diseases?.some(d => d.severity === 'dead')
-                      ? '👻'
-                      : '🐰'}
-                  </div>
-                  <p className="text-white text-xl font-bold">
-                    {petData?.pet?.name || 'Bunny'}
-                  </p>
-                  <p className="text-white/80 text-sm">
-                    {petData?.pet?.stage === 'baby' ? '幼崽期' : '成年期'}
-                  </p>
-                </div>
-              </div>
-
-              {petData?.active_diseases?.map((disease, index) => (
-                <div
-                  key={index}
-                  className="absolute text-center"
-                  style={{
-                    top: '20%',
-                    left: `${20 + index * 25}%`,
-                  }}
-                >
-                  <img
-                    src={LAYER_IMAGES[disease.layer_name]}
-                    alt={disease.symptom}
-                    className="w-16 h-16 object-contain"
-                  />
-                  <p className="text-xs text-white bg-black/50 rounded px-2 py-1 mt-1">
-                    {disease.element === 'fat' ? '肥胖' :
-                     disease.element === 'iron' ? '缺铁' :
-                     disease.element === 'calcium' ? '缺钙' :
-                     disease.element === 'iodine' ? '缺碘' :
-                     disease.element === 'vit_c' ? '缺维C' : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <HPBar label="🍔 肥胖度" value={petData?.pet?.fat_level || 0} inverse />
-              <HPBar label="💪 铁 (Fe)" value={petData?.pet?.iron_hp || 0} />
-              <HPBar label="🦴 钙 (Ca)" value={petData?.pet?.calcium_hp || 0} />
-              <HPBar label="🧂 碘 (I)" value={petData?.pet?.iodine_hp || 0} />
-              <HPBar label="🍊 维C" value={petData?.pet?.vit_c_hp || 0} />
-            </div>
-
-            {petData?.active_diseases?.length > 0 && (
-              <div className="mt-4 p-4 bg-red-500/20 rounded-xl border border-red-500/50">
-                <h3 className="text-red-200 font-bold mb-2">⚠️ 当前疾病状态</h3>
-                <div className="flex flex-wrap gap-2">
-                  {petData.active_diseases.map((disease, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-red-500/30 rounded-full text-red-200 text-sm"
-                    >
-                      {disease.symptom}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">📸 上传餐食照片</h2>
-              <button
-                onClick={() => setShowUpload(!showUpload)}
-                className="px-4 py-2 bg-primary/80 hover:bg-primary rounded-xl text-white text-sm transition-all"
-              >
-                {showUpload ? '收起' : '展开'}
-              </button>
-            </div>
-
-            {showUpload && (
-              <div className="space-y-4">
-                <div
-                  className="border-2 border-dashed border-white/30 rounded-2xl p-8 text-center cursor-pointer hover:border-white/50 transition-all"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {selectedImage ? (
-                    <img
-                      src={selectedImage}
-                      alt="Selected"
-                      className="max-h-48 mx-auto rounded-xl"
-                    />
-                  ) : (
-                    <div className="text-white/70">
-                      <div className="text-5xl mb-2">📷</div>
-                      <p>点击选择图片或拍照</p>
-                      <p className="text-sm mt-1">支持 JPG, PNG 格式</p>
-                    </div>
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handleImageSelect}
-                  className="hidden"
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-8">
+                <img
+                  src={bunnyHome}
+                  alt="等待拍照的小兔子"
+                  className="h-32 w-32 rounded-lg object-cover"
                 />
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setSelectedImage(null)}
-                    disabled={!selectedImage}
-                    className="flex-1 py-3 bg-white/10 hover:bg-white/20 disabled:opacity-50 rounded-xl text-white transition-all"
-                  >
-                    清除图片
-                  </button>
-                  <button
-                    disabled={!selectedImage || analyzing}
-                    className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 rounded-xl text-white font-semibold transition-all"
-                  >
-                    {analyzing ? '🔄 分析中...' : '✨ AI 分析'}
-                  </button>
+                <div className="text-center">
+                  <p className="text-lg font-bold">点击拍照或上传</p>
+                  <p className="mt-2 text-sm leading-6 text-[#61726a]">
+                    上传这一顿饭的照片后，我会把图片发给后端识别。
+                  </p>
                 </div>
-
-                <p className="text-white/60 text-sm text-center">
-                  AI 拍照识别功能即将上线，敬请期待！
-                </p>
               </div>
             )}
-          </div>
+          </button>
 
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20">
-            <h2 className="text-xl font-bold text-white mb-4">🍽️ 手动输入食物</h2>
-            <form onSubmit={handleSubmitFood} className="flex gap-3">
-              <input
-                type="text"
-                value={foodInput}
-                onChange={(e) => setFoodInput(e.target.value)}
-                placeholder="例如：炸鸡、汉堡、蔬菜沙拉..."
-                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+
+          {selectedFile && (
+            <div className="mt-3 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm text-[#61726a] shadow-sm">
+              <span className="truncate pr-3">{selectedFile.name}</span>
               <button
-                type="submit"
-                disabled={analyzing || !foodInput.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-primary to-pink-400 text-white font-semibold rounded-xl hover:from-pink-400 hover:to-primary disabled:opacity-50 transition-all"
+                type="button"
+                onClick={handleClearPhoto}
+                className="shrink-0 rounded-lg px-3 py-1 font-semibold text-[#d6534f] transition hover:bg-[#ffe8e6]"
               >
-                {analyzing ? '分析中...' : '分析'}
+                重拍
               </button>
-            </form>
+            </div>
+          )}
 
-            {analysisResult && (
-              <div className="mt-4 p-4 bg-white/10 rounded-xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xl">
-                    {analysisResult.analysis.is_healthy ? '✅' : '⚠️'}
-                  </span>
-                  <span className="text-white font-bold">
-                    {analysisResult.analysis.food}
-                  </span>
-                </div>
-                <p className="text-white/80 text-sm mb-3">
-                  {analysisResult.analysis.reasoning}
-                </p>
-                <div className="grid grid-cols-5 gap-2 text-center">
-                  <NutrientChip label="脂肪" value={analysisResult.analysis.hp_changes.fat} />
-                  <NutrientChip label="铁" value={analysisResult.analysis.hp_changes.iron} />
-                  <NutrientChip label="钙" value={analysisResult.analysis.hp_changes.calcium} />
-                  <NutrientChip label="碘" value={analysisResult.analysis.hp_changes.iodine} />
-                  <NutrientChip label="维C" value={analysisResult.analysis.hp_changes.vit_c} />
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={handleAnalyzeMeal}
+            disabled={!previewUrl || isAnalyzing}
+            className="mt-4 w-full rounded-lg bg-[#29705a] px-5 py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#1f5b49] disabled:cursor-not-allowed disabled:bg-[#a9b8b1]"
+          >
+            {!previewUrl
+              ? '上传照片后自动识别'
+              : isAnalyzing
+                ? '正在识别...'
+                : '重新识别这张照片'}
+          </button>
+
+          {errorMessage && (
+            <p className="mt-3 rounded-lg border border-[#f3aaa6] bg-[#fff0ef] px-3 py-2 text-sm text-[#a83430]">
+              {errorMessage}
+            </p>
+          )}
+
+          {analysisResult && (
+            <MealResult result={analysisResult} />
+          )}
+
+          {notice && (
+            <p className="mt-3 rounded-lg bg-[#e8f4ef] px-3 py-2 text-sm text-[#29705a]">
+              {notice}
+            </p>
+          )}
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20">
-            <h2 className="text-xl font-bold text-white mb-4">🍱 食堂推荐</h2>
-            {recommendations.reasoning && (
-              <p className="text-white/80 text-sm mb-4">{recommendations.reasoning}</p>
-            )}
-            <div className="space-y-3">
-              {recommendations.recommendations?.map((food, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-white/10 rounded-xl hover:bg-white/20 transition-all cursor-pointer"
-                  onClick={() => handleAnalyzeFood(food.name)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-white font-medium">{food.name}</h3>
-                      <p className="text-white/60 text-xs mt-1">{food.ingredients}</p>
-                    </div>
-                    <span className="text-secondary font-bold text-sm">¥{food.price}</span>
-                  </div>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {food.iron_score > 5 && <Badge color="red">铁+{food.iron_score}</Badge>}
-                    {food.calcium_score > 5 && <Badge color="blue">钙+{food.calcium_score}</Badge>}
-                    {food.iodine_score > 5 && <Badge color="purple">碘+{food.iodine_score}</Badge>}
-                    {food.vit_c_score > 5 && <Badge color="orange">维C+{food.vit_c_score}</Badge>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        <nav className="mt-5 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            className="rounded-lg bg-[#ffcf5a] px-2 py-3 text-sm font-bold text-[#332400] shadow-sm"
+          >
+            你想吃什么？
+          </button>
+          <button
+            type="button"
+            onClick={() => showComingSoon('宠物状态')}
+            className="rounded-lg bg-white px-2 py-3 text-sm font-bold text-[#40514a] shadow-sm transition hover:bg-[#edf5f1]"
+          >
+            宠物状态？
+          </button>
+          <button
+            type="button"
+            onClick={() => showComingSoon('健康任务')}
+            className="rounded-lg bg-white px-2 py-3 text-sm font-bold text-[#40514a] shadow-sm transition hover:bg-[#edf5f1]"
+          >
+            健康任务
+          </button>
+        </nav>
+      </section>
+    </main>
+  )
+}
 
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/20">
-            <h2 className="text-xl font-bold text-white mb-4">📊 营养建议</h2>
-            <div className="space-y-3 text-white/80 text-sm">
-              <div className="p-3 bg-white/5 rounded-xl">
-                <p className="font-bold text-white mb-1">💡 每日小贴士</p>
-                <p>保持饮食均衡，多吃蔬菜水果，少吃垃圾食品！</p>
-              </div>
-              <div className="p-3 bg-white/5 rounded-xl">
-                <p className="font-bold text-white mb-1">🎯 今日目标</p>
-                <p>摄入足够的蛋白质和维生素，让小兔子健康成长！</p>
-              </div>
-            </div>
-          </div>
+function MealResult({ result }) {
+  const analysis = result.analysis
+  const hp = result.pet_current_state?.hp || {}
+
+  return (
+    <section className="mt-4 rounded-lg bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[#29705a]">识别结果</p>
+          <h2 className="mt-1 text-xl font-bold">{analysis.food}</h2>
         </div>
+        <span className={`rounded-lg px-3 py-1 text-sm font-bold ${
+          analysis.is_healthy
+            ? 'bg-[#e3f6e9] text-[#27723d]'
+            : 'bg-[#fff0ef] text-[#a83430]'
+        }`}
+        >
+          {analysis.is_healthy ? '健康' : '需注意'}
+        </span>
       </div>
-    </div>
+
+      <p className="mt-3 text-sm leading-6 text-[#61726a]">
+        {analysis.reasoning}
+      </p>
+
+      <div className="mt-4 grid grid-cols-5 gap-2">
+        <Nutrient label="脂肪" value={hp.fat} />
+        <Nutrient label="铁" value={hp.iron} />
+        <Nutrient label="钙" value={hp.calcium} />
+        <Nutrient label="碘" value={hp.iodine} />
+        <Nutrient label="维C" value={hp.vit_c} />
+      </div>
+    </section>
   )
 }
 
-function HPBar({ label, value, inverse = false }) {
-  const getColor = () => {
-    if (inverse) {
-      if (value >= 80) return 'bg-red-500'
-      if (value >= 50) return 'bg-yellow-500'
-      return 'bg-green-500'
-    }
-    if (value >= 80) return 'bg-green-500'
-    if (value >= 40) return 'bg-yellow-500'
-    return 'bg-red-500'
-  }
-
+function Nutrient({ label, value = 0 }) {
   return (
-    <div className="bg-white/10 rounded-xl p-3">
-      <div className="flex justify-between text-white/80 text-xs mb-1">
-        <span>{label}</span>
-        <span>{value}</span>
-      </div>
-      <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${getColor()} transition-all duration-500`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
+    <div className="rounded-lg bg-[#f1f6f3] px-2 py-3 text-center">
+      <p className="text-xs font-semibold text-[#61726a]">{label}</p>
+      <p className="mt-1 text-sm font-bold text-[#18221d]">{value}</p>
     </div>
-  )
-}
-
-function NutrientChip({ label, value }) {
-  const isPositive = value > 0
-  const isNegative = value < 0
-
-  return (
-    <div
-      className={`p-2 rounded-lg text-center ${
-        isPositive ? 'bg-green-500/30 text-green-200' :
-        isNegative ? 'bg-red-500/30 text-red-200' :
-        'bg-white/10 text-white/60'
-      }`}
-    >
-      <div className="text-xs">{label}</div>
-      <div className="font-bold text-sm">
-        {isPositive ? '+' : ''}{value}
-      </div>
-    </div>
-  )
-}
-
-function Badge({ color, children }) {
-  const colors = {
-    red: 'bg-red-500/30 text-red-200',
-    blue: 'bg-blue-500/30 text-blue-200',
-    purple: 'bg-purple-500/30 text-purple-200',
-    orange: 'bg-orange-500/30 text-orange-200',
-  }
-
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs ${colors[color]}`}>
-      {children}
-    </span>
   )
 }
