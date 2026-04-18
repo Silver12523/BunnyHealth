@@ -33,6 +33,8 @@ class FoodRequest(BaseModel):
     calcium_score: int = 0
     iodine_score: int = 0
     vit_c_score: int = 0
+    vit_a_score: int = 0
+    fiber_score: int = 0
     price: float
     location: str
     is_healthy_option: bool = True

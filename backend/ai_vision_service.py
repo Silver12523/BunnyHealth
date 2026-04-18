@@ -26,8 +26,8 @@ def analyze_food_image_with_ai(image_base64: str) -> dict:
     1. 返回的结果必须是一个合法的 JSON 对象，不要包含任何 markdown 代码块标记，不要多余的废话。
     2. 数值规则：
        - hp_changes 里的所有值必须是整数，范围在 -30 到 +30 之间。
-       - 垃圾食品（如油炸、高糖）应大幅扣除微量元素（iron, calcium, iodine, vit_c 为负数），并增加肥胖值（fat 为正数，比如 20）。
-       - 健康食品应增加对应的微量元素（如吃蔬菜加 vit_c），并降低肥胖值（fat 为负数，比如 -5）。
+       - 垃圾食品（如油炸、高糖）应大幅扣除微量元素（iron, calcium, iodine, vit_c, vit_a, fiber 为负数），并增加肥胖值（fat 为正数，比如 20）。
+       - 健康食品应增加对应的微量元素（如吃蔬菜加 vit_c 和 fiber），并降低肥胖值（fat 为负数，比如 -5）。
        
     输出的 JSON 格式必须完全如下：
     {
@@ -38,7 +38,9 @@ def analyze_food_image_with_ai(image_base64: str) -> dict:
         "iron": -5,
         "calcium": 2,
         "iodine": 0,
-        "vit_c": -10
+        "vit_c": -10,
+        "vit_a": -5,
+        "fiber": -8
       },
       "reasoning": "一两句话解释你的判断逻辑"
     }
@@ -90,7 +92,7 @@ def analyze_food_image_with_ai(image_base64: str) -> dict:
         return {
             "food": "未知食物",
             "is_healthy": True,
-            "hp_changes": {"fat": 0, "iron": 0, "calcium": 0, "iodine": 0, "vit_c": 0},
+            "hp_changes": {"fat": 0, "iron": 0, "calcium": 0, "iodine": 0, "vit_c": 0, "vit_a": 0, "fiber": 0},
             "reasoning": "AI 分析失败，这是保底的默认数据。"
         }
 
@@ -145,7 +147,7 @@ def analyze_food_text_with_ai(food_name: str) -> dict:
     规则：
     1. 返回的结果必须是一个合法的 JSON 对象。
     2. hp_changes 里的所有值必须是整数，范围在 -30 到 +30 之间。
-    3. 垃圾食品应大幅扣除微量元素（iron, calcium, iodine, vit_c 为负数），并增加肥胖值（fat 为正数，比如 20）。
+    3. 垃圾食品应大幅扣除微量元素（iron, calcium, iodine, vit_c, vit_a, fiber 为负数），并增加肥胖值（fat 为正数，比如 20）。
     4. 健康食品应增加对应的微量元素，并降低肥胖值（fat 为负数，比如 -5）。
        
     输出 JSON 格式如下：
@@ -157,7 +159,9 @@ def analyze_food_text_with_ai(food_name: str) -> dict:
         "iron": -5,
         "calcium": 2,
         "iodine": 0,
-        "vit_c": -10
+        "vit_c": -10,
+        "vit_a": -5,
+        "fiber": -8
       },
       "reasoning": "一两句话解释你的判断逻辑"
     }
@@ -183,7 +187,7 @@ def analyze_food_text_with_ai(food_name: str) -> dict:
         return {
             "food": food_name,
             "is_healthy": True,
-            "hp_changes": {"fat": 0, "iron": 0, "calcium": 0, "iodine": 0, "vit_c": 0},
+            "hp_changes": {"fat": 0, "iron": 0, "calcium": 0, "iodine": 0, "vit_c": 0, "vit_a": 0, "fiber": 0},
             "reasoning": "AI 分析失败，这是保底数据。"
         }
 
