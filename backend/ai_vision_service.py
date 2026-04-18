@@ -133,6 +133,60 @@ def analyze_craving_with_ai(craving_food: str) -> dict:
             "analysis_message": "系统未能解析你的食欲，但补充维C总是没错的！"
         }
 
+def analyze_food_text_with_ai(food_name: str) -> dict:
+    """
+    因为前端可能还没做好拍照功能，我们补充一个纯文字版的分析服务
+    让用户输入菜名也能得到真实的 AI 营养结算。
+    """
+    system_prompt = """
+    你是一位顶级的公共营养师。用户会告诉你他们吃了一顿什么食物。
+    你需要估算它对人体（或宠物）几项核心健康值（HP）的影响。
+    
+    规则：
+    1. 返回的结果必须是一个合法的 JSON 对象。
+    2. hp_changes 里的所有值必须是整数，范围在 -30 到 +30 之间。
+    3. 垃圾食品应大幅扣除微量元素（iron, calcium, iodine, vit_c 为负数），并增加肥胖值（fat 为正数，比如 20）。
+    4. 健康食品应增加对应的微量元素，并降低肥胖值（fat 为负数，比如 -5）。
+       
+    输出 JSON 格式如下：
+    {
+      "food": "你识别出的食物名称",
+      "is_healthy": true 或 false,
+      "hp_changes": {
+        "fat": 15,
+        "iron": -5,
+        "calcium": 2,
+        "iodine": 0,
+        "vit_c": -10
+      },
+      "reasoning": "一两句话解释你的判断逻辑"
+    }
+    """
+    try:
+        model_name = os.getenv("LLM_MODEL_NAME", "gpt-4o")
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"我刚刚吃了：{food_name}"}
+            ],
+            max_tokens=300,
+            temperature=0.3
+        )
+        
+        raw_json_str = response.choices[0].message.content
+        clean_json_str = raw_json_str.strip().strip('`').removeprefix('json')
+        return json.loads(clean_json_str)
+        
+    except Exception as e:
+        print(f"AI 文字分析失败: {e}")
+        return {
+            "food": food_name,
+            "is_healthy": True,
+            "hp_changes": {"fat": 0, "iron": 0, "calcium": 0, "iodine": 0, "vit_c": 0},
+            "reasoning": "AI 分析失败，这是保底数据。"
+        }
+
 # ==========================================
 # 测试代码 (只有当你直接运行这个文件时才会执行)
 # ==========================================

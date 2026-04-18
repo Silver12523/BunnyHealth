@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import engine, Base, get_db
 import models
-from ai_vision_service import analyze_craving_with_ai
+from ai_vision_service import analyze_craving_with_ai, analyze_food_image_with_ai, analyze_food_text_with_ai
 
 # 创建数据库所有表
 Base.metadata.create_all(bind=engine)
@@ -102,56 +102,28 @@ def calculate_disease_states(pet: models.Pet):
 
 @app.post("/meals/analyze")
 def analyze_meal(meal_req: MealRequest, db: Session = Depends(get_db)):
-    """Mock AI 饮食分析接口，并执行结算逻辑"""
+    """AI 饮食分析接口（支持传图片 Base64 或纯文本菜名），并执行结算逻辑"""
     pet = db.query(models.Pet).filter(models.Pet.user_id == meal_req.user_id).first()
     if pet is None:
         raise HTTPException(status_code=404, detail="Pet not found")
 
-    food_name = meal_req.food_name.lower()
-    
-    # === [核心 MOCK 逻辑区] === 
-    # 在接入真实 AI 大模型前，我们用这段规则引擎来模拟大模型的输出
-    # 模拟 AI 返回的营养分析 JSON
-    ai_result = {
-        "food": food_name,
-        "is_healthy": True,
-        "hp_changes": {
-            "fat": 0,
-            "iron": 0,
-            "calcium": 0,
-            "iodine": 0,
-            "vit_c": 0
-        },
-        "reasoning": "这是一顿普通的饭菜，保持了当前状态。"
-    }
-
-    # 1. 垃圾食品：炸鸡 / 汉堡
-    if "炸鸡" in food_name or "汉堡" in food_name:
-        ai_result["is_healthy"] = False
-        ai_result["hp_changes"] = {"fat": 20, "iron": -10, "calcium": -5, "iodine": 0, "vit_c": -15}
-        ai_result["reasoning"] = "炸鸡含有极高的油脂，并且缺乏维生素C和铁元素，这会让宠物变胖且免疫力下降！"
-        
-    # 2. 健康食品：蔬菜沙拉
-    elif "沙拉" in food_name or "青菜" in food_name:
-        ai_result["is_healthy"] = True
-        ai_result["hp_changes"] = {"fat": -5, "iron": 5, "calcium": 5, "iodine": 0, "vit_c": 20}
-        ai_result["reasoning"] = "太棒了！丰富的维生素C和矿物质让宠物恢复了活力！"
-
-    # 3. 极度缺铁模拟：奶茶 / 咖啡
-    elif "奶茶" in food_name or "咖啡" in food_name:
-        ai_result["is_healthy"] = False
-        ai_result["hp_changes"] = {"fat": 15, "iron": -25, "calcium": -10, "iodine": 0, "vit_c": -10}
-        ai_result["reasoning"] = "大量的糖分和咖啡因阻碍了铁的吸收，宠物面临严重的贫血风险！"
-    
-    # === [/核心 MOCK 逻辑区结束] ===
+    # 真正接入 AI 的智能判断！
+    # 如果前端传了图片的 Base64，我们就调用视觉大模型
+    if meal_req.image_base64:
+        ai_result = analyze_food_image_with_ai(meal_req.image_base64)
+        food_name = ai_result.get("food", "图片识别食物")
+    # 如果前端因为没做拍照功能只传了文本，我们就用文字让 AI 算扣血数值
+    else:
+        food_name = meal_req.food_name.lower()
+        ai_result = analyze_food_text_with_ai(food_name)
     
     # 结算数值（更新数据库中的宠物状态）
-    changes = ai_result["hp_changes"]
-    pet.fat_level = max(0, min(100, pet.fat_level + changes["fat"]))
-    pet.iron_hp = max(0, min(100, pet.iron_hp + changes["iron"]))
-    pet.calcium_hp = max(0, min(100, pet.calcium_hp + changes["calcium"]))
-    pet.iodine_hp = max(0, min(100, pet.iodine_hp + changes["iodine"]))
-    pet.vit_c_hp = max(0, min(100, pet.vit_c_hp + changes["vit_c"]))
+    changes = ai_result.get("hp_changes", {"fat": 0, "iron": 0, "calcium": 0, "iodine": 0, "vit_c": 0})
+    pet.fat_level = max(0, min(100, pet.fat_level + changes.get("fat", 0)))
+    pet.iron_hp = max(0, min(100, pet.iron_hp + changes.get("iron", 0)))
+    pet.calcium_hp = max(0, min(100, pet.calcium_hp + changes.get("calcium", 0)))
+    pet.iodine_hp = max(0, min(100, pet.iodine_hp + changes.get("iodine", 0)))
+    pet.vit_c_hp = max(0, min(100, pet.vit_c_hp + changes.get("vit_c", 0)))
     
     db.commit()
     db.refresh(pet)
@@ -162,7 +134,7 @@ def analyze_meal(meal_req: MealRequest, db: Session = Depends(get_db)):
         user_id=meal_req.user_id,
         food_name=food_name,
         parsed_nutrition_json=json.dumps(ai_result),
-        is_healthy=ai_result["is_healthy"]
+        is_healthy=ai_result.get("is_healthy", True)
     )
     db.add(log)
     db.commit()
