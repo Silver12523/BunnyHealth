@@ -2,7 +2,8 @@
 
 BunnyHealth 是一个把 AI 饮食识别和电子宠物养成结合起来的健康习惯项目。用户上传一餐食物照片后，系统会识别餐食、估算营养影响，并把饮食结果映射到小兔子的健康状态、房间氛围和每日任务里。
 
-![](C:\Users\31505\Downloads\bh_realpic.jpg)
+<img width="756" height="1391" alt="bh_realpic" src="https://github.com/user-attachments/assets/8be70a71-1fca-4274-bd81-606986dc4f2d" />
+
 
 ## 项目亮点
 
