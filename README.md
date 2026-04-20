@@ -2,7 +2,7 @@
 
 BunnyHealth 是一个把 AI 饮食识别和电子宠物养成结合起来的健康习惯项目。用户上传一餐食物照片后，系统会识别餐食、估算营养影响，并把饮食结果映射到小兔子的健康状态、房间氛围和每日任务里。
 
-![BunnyHealth home preview](picture/healthhome.png)
+![](C:\Users\31505\Downloads\bh_realpic.jpg)
 
 ## 项目亮点
 
@@ -83,15 +83,15 @@ npm run dev
 
 ## API 摘要
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `POST` | `/meals/analyze` | 分析餐食图片或食物名称，并更新宠物状态 |
-| `POST` | `/cravings/advice` | 根据想吃的食物生成健康替代建议 |
-| `GET` | `/pets/{user_id}/status` | 获取宠物、房间、营养指标和近期饮食记录 |
-| `PATCH` | `/pets/{user_id}/name` | 修改宠物名称 |
-| `GET` | `/health-tasks/{user_id}/today` | 获取当天健康任务 |
-| `POST` | `/health-tasks/complete` | 完成健康任务并更新宠物状态 |
-| `GET` | `/events/{user_id}` | 获取事件收集图鉴 |
+| Method  | Endpoint                        | Description         |
+| ------- | ------------------------------- | ------------------- |
+| `POST`  | `/meals/analyze`                | 分析餐食图片或食物名称，并更新宠物状态 |
+| `POST`  | `/cravings/advice`              | 根据想吃的食物生成健康替代建议     |
+| `GET`   | `/pets/{user_id}/status`        | 获取宠物、房间、营养指标和近期饮食记录 |
+| `PATCH` | `/pets/{user_id}/name`          | 修改宠物名称              |
+| `GET`   | `/health-tasks/{user_id}/today` | 获取当天健康任务            |
+| `POST`  | `/health-tasks/complete`        | 完成健康任务并更新宠物状态       |
+| `GET`   | `/events/{user_id}`             | 获取事件收集图鉴            |
 
 ## GitHub 展示建议
 
